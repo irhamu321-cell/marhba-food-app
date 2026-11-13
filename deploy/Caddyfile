@@ -1,0 +1,125 @@
+# ---------------------------------------------------------------------------
+# Marhba — Caddy
+#
+#   /etc/caddy/Caddyfile
+#   caddy validate --config /etc/caddy/Caddyfile
+#   systemctl reload caddy
+#
+# Replace marhba.ma with your domain and the email with yours. Caddy gets and
+# renews the TLS certificate by itself; nothing else to do.
+# ---------------------------------------------------------------------------
+
+{
+	email vous@marhba.ma
+
+	# One request body limit for the whole site. The app caps uploads at 5 MB
+	# itself; this stops a large body before it reaches Node at all.
+	servers {
+		max_header_size 16kb
+	}
+}
+
+marhba.ma, www.marhba.ma {
+	encode zstd gzip
+
+	# -- security headers ---------------------------------------------------
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "geolocation=(self), camera=(), microphone=(), payment=()"
+		-Server
+
+		# The app is plain HTML, CSS and ES modules with no inline script, plus
+		# Leaflet and OpenStreetMap tiles for the address picker. 'unsafe-inline'
+		# is needed for style attributes only.
+		Content-Security-Policy "default-src 'self'; script-src 'self' https://unpkg.com; style-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: https://*.tile.openstreetmap.org https://unpkg.com; connect-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+	}
+
+	# -- the live order stream ---------------------------------------------
+	# Server-Sent Events must not be buffered or compressed: a buffered stream
+	# holds every event until the connection closes, which is exactly the delay
+	# the stream exists to remove. flush_interval -1 disables buffering.
+	@stream path /api/restaurant/stream
+	handle @stream {
+		reverse_proxy 127.0.0.1:3000 {
+			flush_interval -1
+			transport http {
+				read_timeout 24h
+			}
+		}
+	}
+
+	# -- uploaded pictures --------------------------------------------------
+	# Served by the app, but cacheable: the filename is a UUID, so a given URL
+	# never changes content and may be cached for a long time.
+	@uploads path /uploads/*
+	handle @uploads {
+		header Cache-Control "public, max-age=2592000, immutable"
+		reverse_proxy 127.0.0.1:3000
+	}
+
+	# -- everything else ----------------------------------------------------
+	handle {
+		reverse_proxy 127.0.0.1:3000 {
+			header_up X-Real-IP {remote_host}
+			# Set TRUST_PROXY=1 in .env so the app believes these.
+			header_up X-Forwarded-For {remote_host}
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
+	log {
+		output file /var/log/caddy/marhba.log {
+			roll_size 20mb
+			roll_keep 10
+		}
+	}
+}
+
+# ---------------------------------------------------------------------------
+# A note on rate limiting
+#
+# Caddy has no built-in rate limiter; the usual one is the third-party
+# caddy-ratelimit module, which needs a custom build. The app already limits
+# what matters most — failed logins per identifier and per IP, and
+# verification-code requests per phone number — so you do not need this on
+# day one. If you later want a global limit, build Caddy with:
+#
+#   xcaddy build --with github.com/mholt/caddy-ratelimit
+#
+# and add, inside the site block:
+#
+#   rate_limit {
+#       zone api {
+#           match { path /api/* }
+#           key    {remote_host}
+#           events 120
+#           window 1m
+#       }
+#   }
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# A note on the two CDN entries in the CSP above
+#
+# The address picker loads Leaflet from unpkg.com, so the policy has to allow
+# scripts from there. That means trusting unpkg: if it were ever compromised,
+# the injected script would run on your pages with your customers' sessions.
+#
+# Two ways to remove that trust, in order of preference:
+#
+# 1. Host Leaflet yourself. Download leaflet.js, leaflet.css and the images
+#    folder into web/vendor/leaflet/, change LEAFLET_CSS and LEAFLET_JS at the
+#    top of web/js/addresses.js to those paths, and delete every
+#    "https://unpkg.com" from the policy above. The map keeps working with no
+#    outside script at all, and it also keeps working on a bad connection.
+#
+# 2. Add Subresource Integrity to the two tags in web/js/addresses.js. Copy
+#    the hashes from unpkg's own page for leaflet@1.9.4 rather than from any
+#    guide, including this one: a wrong hash silently stops the map loading.
+#
+# The tile images still come from openstreetmap.org either way, which is an
+# image source and cannot execute anything.
+# ---------------------------------------------------------------------------

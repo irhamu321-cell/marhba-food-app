@@ -1,0 +1,18 @@
+{
+  "name": "marhba-food-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Marhba - Cuisine Maison fait par des mamans",
+  "main": "server/src/index.js",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node server/src/index.js",
+    "test": "node test/service.mjs"
+  },
+  "keywords": ["food-app", "cuisine-maison", "glovo-alternative"],
+  "author": "",
+  "license": "ISC"
+}

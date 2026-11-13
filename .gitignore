@@ -1,0 +1,17 @@
+node_modules/
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/secret.key
+data/backups/*
+!data/backups/.gitkeep
+.env
+.DS_Store
+*.log
+diagnose-log.txt
+web-backup-before-restyle/
+cloudflared.exe
+*.zip
+web/food-app.zip
+web/uploads/*
+!web/uploads/.gitkeep

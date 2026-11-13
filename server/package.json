@@ -1,0 +1,14 @@
+{
+  "name": "food-app-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "API de la marketplace de commande de nourriture (zero dependance)",
+  "engines": { "node": ">=22.5" },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "reset": "node src/seed.js --reset",
+    "test": "node ../test/smoke.js"
+  }
+}
