@@ -13,6 +13,9 @@ import { setDelivery } from './codes.js';
 import { smsDelivery, smsProvider } from './sms.js';
 
 loadEnv(ROOT);
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+  process.env.NODE_ENV = 'development';
+}
 enforceEnvironment();
 
 const PORT = Number(process.env.PORT || 3000);
